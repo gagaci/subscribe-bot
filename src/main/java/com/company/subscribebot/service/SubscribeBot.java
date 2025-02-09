@@ -40,6 +40,7 @@ public class SubscribeBot implements LongPollingSingleThreadUpdateConsumer {
         new BotCommand("/setchannel", "Start the bot")
     );
 
+
     SetMyCommands setMyCommands = new SetMyCommands(commands, new BotCommandScopeDefault(), null);
 
     try {
