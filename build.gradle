@@ -25,11 +25,15 @@ repositories {
 
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter'
+    implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation 'org.telegram:telegrambots-longpolling:8.0.0'
     implementation 'org.telegram:telegrambots-client:8.0.0'
+    runtimeOnly("org.postgresql:postgresql")
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
+    testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
