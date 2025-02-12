@@ -1,6 +1,9 @@
 package com.company.subscribebot.service;
 
 import com.company.subscribebot.BotDependencies;
+import com.company.subscribebot.service.channel.ChannelService;
+import com.company.subscribebot.service.group.GroupService;
+import com.company.subscribebot.service.user.UserService;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -43,11 +46,10 @@ public class SubscribeBot implements LongPollingSingleThreadUpdateConsumer {
     List<BotCommand> commands = List.of(
         new BotCommand("/start", "Start the bot"),
         new BotCommand("/setchannel", "Set channels to the bot"),
-        new BotCommand("/format", "Get proper format of sending channels")
+        new BotCommand("/help", "How to use the bot")
     );
 
     SetMyCommands setMyCommands = new SetMyCommands(commands, new BotCommandScopeDefault(), null);
-
     try {
       telegramClient.execute(setMyCommands);
     } catch (TelegramApiException e) {
@@ -55,6 +57,7 @@ public class SubscribeBot implements LongPollingSingleThreadUpdateConsumer {
     }
   }
 
+  @SneakyThrows
   @Override
   public void consume(Update update) {
     if (update.hasMessage() && update.getMessage().hasText()) {
@@ -71,26 +74,46 @@ public class SubscribeBot implements LongPollingSingleThreadUpdateConsumer {
   }
 
 
-  private void handleGroupMessage(Message message, long chatId) {
+  private void handleGroupMessage(Message message, long chatId)
+      throws TelegramApiException {
     List<String> channels = List.of();
     log.info("Group message {}, with ID {}", message.getText(), chatId);
 
     String messageText = message.getText();
-    if (messageText.startsWith("/setchannel")) {
 
+    GroupService groupService = botDependencies.getGroupService();
+
+    groupService.createGroup(message);
+
+    if (messageText.startsWith("/setchannel")) {
+      log.info("/setchannel userId {}, chatId {}", message.getFrom().getId(), chatId);
       channels = extractChannels(messageText);
 
       boolean allExist = doChannelsExist(channels);
 
-      if (allExist) {
-        sendMessage(chatId, "📢 <b>Your channels are all valid</b>\n");
-
-      } else {
-        sendMessage(chatId, "Channel is invalid ");
+      if (!allExist) {
+        sendMessage(chatId,
+            """
+                ❌ <b>Invalid Channel IDs</b>
+                
+                The provided channel IDs contain invalid or non-existent links. Please ensure that:
+                ✅ The channels exist.
+                ✅ The bot is an administrator in those channels.
+                ✅ You have provided the correct channel usernames or IDs.
+                
+                Try again with the correct details.""");
+        return;
       }
 
-    } else if (messageText.startsWith("/format")) {
-      showFormat(chatId);
+      ChannelService channelService = botDependencies.getChannelService();
+
+      channelService.createChannel(channels);
+
+    } else if (messageText.startsWith("/help")) {
+      log.info("/help userId {}, chatId {}", message.getFrom().getId(), chatId);
+      helpMessage(chatId);
+    } else if (message.getText().startsWith("/start")) {
+      welcomeMessage(chatId, message.getChat().getFirstName());
     }
 
     String userName = message.getFrom().getUserName();
@@ -104,22 +127,42 @@ public class SubscribeBot implements LongPollingSingleThreadUpdateConsumer {
 
       log.info("username {}", userName);
 
-      if (memberStatus.equals("left")) {
+      if (isAdmin(chatId, userId)) {
+        log.info("User is an admin cannot delete message {} {}", chatId, userId);
+      } else if (memberStatus.equals("left")) {
+        log.info("Deleted message of userId {}, chatId {}, messageId {}", message.getFrom().getId(),
+            chatId, message.getMessageId());
         deleteMessage(message, chatId);
-
-        String stringBuilder = "<b> Please </b> "
-            + (userName == null ? firstName : '@' + userName)
-            + " subscribe to ";
-
-        sendMessage(chatId, stringBuilder);
+        sendSubscribeMessage(userName, firstName, chatId, channels);
       }
 
     }
   }
 
+  private void sendSubscribeMessage(String userName, String firstName, long chatId,
+      List<String> channels) {
+    List<String> finalChannels = eliminateAtSymbol(channels);
+    String resultChannels = String.join(" ", finalChannels);
+    String result = String.format(
+        """
+            🔔 <b>Attention!</b>
+            
+            Dear %s, to continue participating in this group, you must subscribe to %s.
+            
+            ✅ Please make sure to join the required channels and try again.""",
+        (userName == null ? firstName : "@" + userName), "t.me/" + resultChannels);
+    sendMessage(chatId, result);
+  }
+
+  private List<String> eliminateAtSymbol(List<String> channels) {
+    return channels.stream()
+        .map(channel -> channel.startsWith("@") ? channel.substring(1) : channel)
+        .toList();
+  }
+
 
   private List<String> checkIsUserMemberInChannel(List<String> channelIds, long userId,
-      long chatId) {
+      long chatId) throws TelegramApiException {
     List<String> memberStatuses = new ArrayList<>();
     for (String channelId : channelIds) {
       GetChatMember getChatMember = new GetChatMember(channelId, userId);
@@ -128,7 +171,7 @@ public class SubscribeBot implements LongPollingSingleThreadUpdateConsumer {
         chatMember = telegramClient.execute(getChatMember);
       } catch (TelegramApiException e) {
         sendMessage(chatId, "I do not have access to your <b>" + channelId + "</b>");
-        throw new RuntimeException(e);
+        throw new TelegramApiException(e);
       }
       memberStatuses.add(chatMember.getStatus());
     }
@@ -148,11 +191,6 @@ public class SubscribeBot implements LongPollingSingleThreadUpdateConsumer {
     }
   }
 
-
-  private void showFormat(long chatId) {
-    String format = "/setChannel @channelId1 @channelId2";
-    sendMessage(chatId, format);
-  }
 
   @SneakyThrows
   public void sendMessage(Long chatId, String text) {
@@ -197,12 +235,51 @@ public class SubscribeBot implements LongPollingSingleThreadUpdateConsumer {
     if (message.getText().equals("/start")) {
       UserService userService = botDependencies.getUserService();
       User tgUser = message.getFrom();
+      welcomeMessage(chatId, tgUser.getFirstName());
       userService.createUser(tgUser, chatId);
-      String stringBuilder = "Welcome "
-          + message.getFrom().getFirstName()
-          + " to subscribe bot 🌐";
-
-      sendMessage(chatId, stringBuilder);
+    } else if (message.getText().equals("/help")) {
+      helpMessage(chatId);
     }
   }
+
+  private void welcomeMessage(long chatId, String firstName) {
+    String welcomeMessage = String.format(
+        """
+            🎉 <b>Welcome %s\
+            
+            </b>🚀 This bot will help you gain more subscribers to your channels swiftly. Use /help command to get instructions of the bot""",
+        firstName == null ? "" : firstName);
+
+    sendMessage(chatId, welcomeMessage);
+  }
+
+  private void helpMessage(long chatId) {
+    String message = """
+        🤖 <b>Welcome to the Channel Subscription Bot!</b>
+        
+        This bot helps guide your group members to the required channels.
+        
+        📌 <b>How to Set Up:</b>
+        1️⃣ <b>Add the bot</b> as an admin to all required channels.
+        2️⃣ <b>Use the command:</b> <code>/setchannel</code> to specify the channels.
+        3️⃣ <b>Include '@' before each channel name.</b>
+        4️⃣ <b>Separate channel names with spaces.</b>
+        5️⃣ <b>Example format:</b> <code>/setchannel @channel1 @channel2</code>
+        
+        ✅ Once set up, the bot will ensure group members are subscribed before participating.""";
+    sendMessage(chatId, message);
+  }
+
+  private boolean isAdmin(Long chatId, Long userId) {
+    GetChatMember getChatMember = new GetChatMember(chatId.toString(), userId);
+    try {
+      ChatMember chatMember = telegramClient.execute(getChatMember);
+
+      return chatMember.getStatus().equals("administrator") || chatMember.getStatus()
+          .equals("creator");
+    } catch (TelegramApiException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
 }

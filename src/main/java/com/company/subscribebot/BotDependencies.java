@@ -1,9 +1,10 @@
 package com.company.subscribebot;
 
-import com.company.subscribebot.service.UserService;
+import com.company.subscribebot.service.channel.ChannelService;
+import com.company.subscribebot.service.group.GroupService;
+import com.company.subscribebot.service.user.UserService;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -12,5 +13,9 @@ import org.springframework.stereotype.Component;
 public class BotDependencies {
 
   private final UserService userService;
+
+  private final GroupService groupService;
+
+  private final ChannelService channelService;
 
 }

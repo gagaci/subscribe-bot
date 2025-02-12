@@ -24,7 +24,7 @@ public class SubscribeBotApplication {
     TelegramBotsLongPollingApplication botsApplication = new TelegramBotsLongPollingApplication();
 
     // Register our bot
-    String botToken = "7762894601:AAEqngkeXnp_l0sNcPVVGXYrqKdzWXOYdVc";
+    String botToken = "7762894601:AAGkhXMwB9d1U4IzxQoRk4hGu2YYTc_EMFM";
     botsApplication.registerBot(botToken, this.subscribeBot);
     System.out.println("Subscribe bot successfully started!");
   }

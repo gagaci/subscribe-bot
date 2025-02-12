@@ -2,7 +2,9 @@ package com.company.subscribebot.config;
 
 import com.company.subscribebot.BotDependencies;
 import com.company.subscribebot.service.SubscribeBot;
-import com.company.subscribebot.service.UserService;
+import com.company.subscribebot.service.channel.ChannelService;
+import com.company.subscribebot.service.group.GroupService;
+import com.company.subscribebot.service.user.UserService;
 import lombok.Data;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -13,12 +15,14 @@ import org.springframework.context.annotation.Configuration;
 public class BotConfig {
 
   @Bean
-  public BotDependencies botDependencies(UserService userService) {
-    return new BotDependencies(userService);
+  public BotDependencies botDependencies(UserService userService, GroupService groupService,
+      ChannelService channelService) {
+    return new BotDependencies(userService, groupService, channelService);
   }
 
   @Bean
-  public SubscribeBot subscribeBot(@Value("${bot.token}") String botToken, BotDependencies botDependencies) {
+  public SubscribeBot subscribeBot(@Value("${bot.token}") String botToken,
+      BotDependencies botDependencies) {
     return new SubscribeBot(botToken, botDependencies);
   }
 }

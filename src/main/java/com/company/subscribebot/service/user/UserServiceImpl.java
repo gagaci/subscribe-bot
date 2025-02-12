@@ -1,4 +1,4 @@
-package com.company.subscribebot.service;
+package com.company.subscribebot.service.user;
 
 import com.company.subscribebot.entity.User;
 import com.company.subscribebot.entity.UserStatus;

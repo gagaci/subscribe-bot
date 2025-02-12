@@ -1,4 +1,4 @@
-package com.company.subscribebot.service;
+package com.company.subscribebot.service.user;
 
 import org.telegram.telegrambots.meta.api.objects.User;
 
