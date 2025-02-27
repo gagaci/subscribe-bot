@@ -1,6 +1,7 @@
 package com.company.subscribebot.service;
 
 import com.company.subscribebot.BotDependencies;
+import com.company.subscribebot.entity.Channel;
 import com.company.subscribebot.service.channel.ChannelService;
 import com.company.subscribebot.service.group.GroupService;
 import com.company.subscribebot.service.user.UserService;
@@ -8,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -73,7 +75,6 @@ public class SubscribeBot implements LongPollingSingleThreadUpdateConsumer {
     }
   }
 
-
   private void handleGroupMessage(Message message, long chatId)
       throws TelegramApiException {
     List<String> channels = List.of();
@@ -86,28 +87,20 @@ public class SubscribeBot implements LongPollingSingleThreadUpdateConsumer {
     groupService.createGroup(message);
 
     if (messageText.startsWith("/setchannel")) {
-      log.info("/setchannel userId {}, chatId {}", message.getFrom().getId(), chatId);
+      log.info("/setchannel  userId {}, chatId {}", message.getFrom().getId(), chatId);
       channels = extractChannels(messageText);
 
       boolean allExist = doChannelsExist(channels);
 
       if (!allExist) {
+        String invalidIdMessage = getMessage("invalid-id.message");
         sendMessage(chatId,
-            """
-                ❌ <b>Invalid Channel IDs</b>
-                
-                The provided channel IDs contain invalid or non-existent links. Please ensure that:
-                ✅ The channels exist.
-                ✅ The bot is an administrator in those channels.
-                ✅ You have provided the correct channel usernames or IDs.
-                
-                Try again with the correct details.""");
+            invalidIdMessage);
         return;
       }
 
-      ChannelService channelService = botDependencies.getChannelService();
+      saveChannel(channels);
 
-      channelService.createChannel(channels);
 
     } else if (messageText.startsWith("/help")) {
       log.info("/help userId {}, chatId {}", message.getFrom().getId(), chatId);
@@ -143,13 +136,9 @@ public class SubscribeBot implements LongPollingSingleThreadUpdateConsumer {
       List<String> channels) {
     List<String> finalChannels = eliminateAtSymbol(channels);
     String resultChannels = String.join(" ", finalChannels);
+    String message = getMessage("subscribe.message");
     String result = String.format(
-        """
-            🔔 <b>Attention!</b>
-            
-            Dear %s, to continue participating in this group, you must subscribe to %s.
-            
-            ✅ Please make sure to join the required channels and try again.""",
+        message,
         (userName == null ? firstName : "@" + userName), "t.me/" + resultChannels);
     sendMessage(chatId, result);
   }
@@ -231,43 +220,50 @@ public class SubscribeBot implements LongPollingSingleThreadUpdateConsumer {
   }
 
   private void handlePrivateMessage(Message message, long chatId) {
-    log.info("private message {}, with ID {}", message.getText(), chatId);
-    if (message.getText().equals("/start")) {
+    String messageText = message.getText();
+    log.info("private message {}, with ID {}", messageText, chatId);
+
+    if (messageText.equals("/start")) {
       UserService userService = botDependencies.getUserService();
       User tgUser = message.getFrom();
       welcomeMessage(chatId, tgUser.getFirstName());
       userService.createUser(tgUser, chatId);
-    } else if (message.getText().equals("/help")) {
+    } else if (messageText.equals("/help")) {
       helpMessage(chatId);
     }
+
   }
 
   private void welcomeMessage(long chatId, String firstName) {
-    String welcomeMessage = String.format(
-        """
-            🎉 <b>Welcome %s\
-            
-            </b>🚀 This bot will help you gain more subscribers to your channels swiftly. Use /help command to get instructions of the bot""",
+    String welcomeMessage = getMessage("greeting.message");
+
+    String finalMessage = String.format(
+        welcomeMessage,
         firstName == null ? "" : firstName);
 
-    sendMessage(chatId, welcomeMessage);
+    sendMessage(chatId, finalMessage);
   }
 
   private void helpMessage(long chatId) {
-    String message = """
-        🤖 <b>Welcome to the Channel Subscription Bot!</b>
-        
-        This bot helps guide your group members to the required channels.
-        
-        📌 <b>How to Set Up:</b>
-        1️⃣ <b>Add the bot</b> as an admin to all required channels.
-        2️⃣ <b>Use the command:</b> <code>/setchannel</code> to specify the channels.
-        3️⃣ <b>Include '@' before each channel name.</b>
-        4️⃣ <b>Separate channel names with spaces.</b>
-        5️⃣ <b>Example format:</b> <code>/setchannel @channel1 @channel2</code>
-        
-        ✅ Once set up, the bot will ensure group members are subscribed before participating.""";
+    /// TODO : learn how to utilize message.properties with emoji and html tags
+
+    String message = getMessage("help.message");
     sendMessage(chatId, message);
+  }
+
+  @SneakyThrows
+  private void saveChannel(List<String> channels) {
+    ChannelService channelService = botDependencies.getChannelService();
+    for (String channel : channels) {
+      Channel entity = Channel.builder()
+          .channelName(channel)
+          .build();
+      channelService.createChannel(entity);
+    }
+  }
+
+  public String getMessage(String key, Object... args) {
+    return botDependencies.getMessageSource().getMessage(key, args, Locale.getDefault());
   }
 
   private boolean isAdmin(Long chatId, Long userId) {

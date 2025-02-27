@@ -1,9 +1,9 @@
 package com.company.subscribebot.service.channel;
 
-import java.util.List;
+import com.company.subscribebot.entity.Channel;
 
 public interface ChannelService {
 
-  void createChannel(List<String> channelNames);
+  void createChannel(Channel channel);
 
 }

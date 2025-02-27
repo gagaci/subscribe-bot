@@ -5,6 +5,7 @@ import com.company.subscribebot.service.group.GroupService;
 import com.company.subscribebot.service.user.UserService;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import org.springframework.context.MessageSource;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -17,5 +18,7 @@ public class BotDependencies {
   private final GroupService groupService;
 
   private final ChannelService channelService;
+
+  private final MessageSource messageSource;
 
 }
